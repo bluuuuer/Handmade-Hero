@@ -41,6 +41,7 @@ struct win32_window_dimension {
 // TODO: This is a global for now.
 global_variable bool globalRunning;
 global_variable win32_offscreen_buffer globalBackbuffer;
+global_variable LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
 
 // XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -108,8 +109,7 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
                 DSBUFFERDESC bufferDesc = {};
                 bufferDesc.dwSize = sizeof(bufferDesc);
                 bufferDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
-
-                // IDirectSoundBuffer primaryBuffer;
+                // Create a primary buffer
                 LPDIRECTSOUNDBUFFER primaryBuffer;
                 if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &primaryBuffer, 0))) {
                     
@@ -118,6 +118,8 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
                     } else {
                         // TODO: Diagnostic
                     }
+                } else {
+                    // TODO: Diagnostic
                 }
             } else {
                 // TODO: Diagnostic
@@ -129,9 +131,7 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
             bufferDesc.dwFlags = 0;
             bufferDesc.dwBufferBytes = bufferSize;
             bufferDesc.lpwfxFormat = &waveFormat;
-            // IDirectSoundBuffer *secondBuffer;
-            LPDIRECTSOUNDBUFFER secondaryBuffer;
-            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &secondaryBuffer, 0))) {
+            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &globalSecondaryBuffer, 0))) {
                 OutputDebugStringA("Secondary buffer format was set.\n");
             }
         } else {
@@ -324,11 +324,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
         if (windowHandle) {
             ShowWindow(windowHandle, SW_SHOWNORMAL);
             HDC deviceContext = GetDC(windowHandle);
-            // UpdateWindow(windowHandle);
-            globalRunning = true;
+
             int xOffset = 0;
             int yOffset = 0;
-            InitDSound(windowHandle, 48800, 48800 * sizeof(int16) * 2);
+            int samplesPerSecond = 48000;
+            int Hz = 256;
+            int squareWaveCounter = 0;
+            int squareWavePeriod = samplesPerSecond / Hz;
+
+            InitDSound(windowHandle, samplesPerSecond, samplesPerSecond * sizeof(int16) * 2);
+
+            globalRunning = true;
             while (globalRunning) {
                 MSG message;
                 while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -375,6 +381,40 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
 
                 // Render
                 RenderGradient(globalBackbuffer, xOffset, yOffset);
+                
+                // DirectSound output test
+                DWORD writePointer = ;
+                DWORD bytesToWrite = ;
+                VOID *region1;
+                DWORD region1Size;
+                VOID *region2;
+                DWORD region2Size;
+                globalSecondaryBuffer->Lock(writePointer, bytesToWrite,
+                                            &region1, &region1Size,
+                                            &region2, &region2Size,
+                                            0);
+                int16 * sampleOut = (int16 *)region1;
+                DWORD region1SampleCount = region1Size / bytesPerSample;
+                DWORD region2SampleCount = region2Size / bytesPerSample;
+                for (DWROD sampleIndex = 0; sampleIndex < region1SampleCount; ++ sampleIndex) {
+                    if (squareWaveCounter) {
+                        squareWaveCounter = sqareWavePeriod;
+                    }
+                    int16 sampleValue = (squareWaveCounter > (squareWavePeriod / 2)) ? 16000 : -16000;
+                    *sampleOut ++ = Left;
+                    *sampleOut ++ = Right;
+                    -- squareWaveCounter;
+                }
+                for (DWROD sampleIndex = 0; sampleIndex < region2SampleCount; ++ sampleIndex) {
+                    if (squareWaveCounter) {
+                        squareWaveCounter = sqareWavePeriod;
+                    }
+                    int16 sampleValue = (squareWaveCounter > (squareWavePeriod / 2)) ? 16000 : -16000;
+                    *sampleOut ++ = Left;
+                    *sampleOut ++ = Right;
+                    -- squareWaveCounter;
+                }
+
                 win32_window_dimension dimension = GetWindowDimension(windowHandle);
                 DisplayBufferInWindow(deviceContext, dimension.width, dimension.height, dimension, &globalBackbuffer); //, 0, 0, dimension.width, dimension.height);
                 // ReleaseDC(windowHandle, deviceContext);
