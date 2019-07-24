@@ -98,9 +98,9 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
             waveFormat.wFormatTag = WAVE_FORMAT_PCM;
             waveFormat.nChannels = 2;
             waveFormat.nSamplesPerSec = samplesPerSecond;
-            waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;                    
-            waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
             waveFormat.wBitsPerSample = 16;                    
+            waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
+            waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;                    
             waveFormat.cbSize = 0;
 
             // Create a primary buffer
@@ -114,7 +114,7 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
                 if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &primaryBuffer, 0))) {
                     
                     if (SUCCEEDED(primaryBuffer->SetFormat(&waveFormat))) {
-
+                        OutputDebugStringA("Primary buffer format was set.\n");
                     } else {
                         // TODO: Diagnostic
                     }
@@ -130,8 +130,9 @@ internal void InitDSound(HWND windowHandler, int32 samplesPerSecond, int32 buffe
             bufferDesc.dwBufferBytes = bufferSize;
             bufferDesc.lpwfxFormat = &waveFormat;
             // IDirectSoundBuffer *secondBuffer;
-            LPDIRECTSOUNDBUFFER secondBuffer;
-            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &secondBuffer, 0))) {
+            LPDIRECTSOUNDBUFFER secondaryBuffer;
+            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc, &secondaryBuffer, 0))) {
+                OutputDebugStringA("Secondary buffer format was set.\n");
             }
         } else {
             // TODO: Diagnostic
