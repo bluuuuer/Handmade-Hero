@@ -315,24 +315,28 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
     if (RegisterClass(&windowClass)) {
         HWND windowHandle = CreateWindow(windowClass.lpszClassName, 
                                         TEXT("Handmade Hero"), 
-                                        WS_OVERLAPPEDWINDOW, 
+                                        WS_OVERLAPPEDWINDOW | WS_VISIBLE, 
                                         CW_USEDEFAULT, 
                                         CW_USEDEFAULT, 
                                         CW_USEDEFAULT, 
                                         CW_USEDEFAULT, 
                                         0, 0, instance, 0);
         if (windowHandle) {
-            ShowWindow(windowHandle, SW_SHOWNORMAL);
+            // ShowWindow(windowHandle, SW_SHOWNORMAL);
             HDC deviceContext = GetDC(windowHandle);
 
             int xOffset = 0;
             int yOffset = 0;
             int samplesPerSecond = 48000;
             int Hz = 256;
+            uint32 runningSampleIndex = 0;
             int squareWaveCounter = 0;
             int squareWavePeriod = samplesPerSecond / Hz;
+            int halfSquareWavePeriod = squareWavePeriod / 2;
+            int bytesPerSample = sizeof(int16) * 2;
+            int secondaryBufferSize = samplesPerSecond * bytesPerSample;
 
-            InitDSound(windowHandle, samplesPerSecond, samplesPerSecond * sizeof(int16) * 2);
+            InitDSound(windowHandle, samplesPerSecond, secondaryBufferSize);
 
             globalRunning = true;
             while (globalRunning) {
@@ -383,36 +387,41 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 RenderGradient(globalBackbuffer, xOffset, yOffset);
                 
                 // DirectSound output test
-                DWORD writePointer = ;
-                DWORD bytesToWrite = ;
-                VOID *region1;
-                DWORD region1Size;
-                VOID *region2;
-                DWORD region2Size;
-                globalSecondaryBuffer->Lock(writePointer, bytesToWrite,
-                                            &region1, &region1Size,
-                                            &region2, &region2Size,
-                                            0);
-                int16 * sampleOut = (int16 *)region1;
-                DWORD region1SampleCount = region1Size / bytesPerSample;
-                DWORD region2SampleCount = region2Size / bytesPerSample;
-                for (DWROD sampleIndex = 0; sampleIndex < region1SampleCount; ++ sampleIndex) {
-                    if (squareWaveCounter) {
-                        squareWaveCounter = sqareWavePeriod;
+                DWORD playCursor;
+                DWORD writeCursor;
+                if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))) {
+                    DWORD byteToLock = runningSampleIndex * bytesPerSample % secondaryBufferSize;
+                    DWORD bytesToWrite;
+                    if (byteToLock > playCursor) {
+                        bytesToWrite = secondaryBufferSize - byteToLock;
+                        bytesToWrite += playCursor;
+                    } else {
+                        bytesToWrite = playCursor - byteToLock;
                     }
-                    int16 sampleValue = (squareWaveCounter > (squareWavePeriod / 2)) ? 16000 : -16000;
-                    *sampleOut ++ = Left;
-                    *sampleOut ++ = Right;
-                    -- squareWaveCounter;
-                }
-                for (DWROD sampleIndex = 0; sampleIndex < region2SampleCount; ++ sampleIndex) {
-                    if (squareWaveCounter) {
-                        squareWaveCounter = sqareWavePeriod;
+
+                    VOID *region1;
+                    DWORD region1Size;
+                    VOID *region2;
+                    DWORD region2Size;
+                    if (SUCCEEDED(globalSecondaryBuffer->Lock(byteToLock, bytesToWrite,
+                                                &region1, &region1Size,
+                                                &region2, &region2Size,
+                                                0))) {
+                        int16 * sampleOut = (int16 *)region1;
+                        DWORD region1SampleCount = region1Size / bytesPerSample;
+                        for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++ sampleIndex) {
+                            int16 sampleValue = (runningSampleIndex / halfSquareWavePeriod % 2) ? 16000 : -16000;
+                            *sampleOut ++ = sampleValue;
+                            *sampleOut ++ = sampleValue;
+                        }
+                        sampleOut = (int16 *)region2;
+                        DWORD region2SampleCount = region2Size / bytesPerSample;
+                        for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++ sampleIndex) {
+                            int16 sampleValue = (runningSampleIndex / halfSquareWavePeriod % 2) ? 16000 : -16000;
+                            *sampleOut ++ = sampleValue;
+                            *sampleOut ++ = sampleValue;
+                        }
                     }
-                    int16 sampleValue = (squareWaveCounter > (squareWavePeriod / 2)) ? 16000 : -16000;
-                    *sampleOut ++ = Left;
-                    *sampleOut ++ = Right;
-                    -- squareWaveCounter;
                 }
 
                 win32_window_dimension dimension = GetWindowDimension(windowHandle);
