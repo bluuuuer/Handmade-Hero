@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <Xinput.h>
 #include <dsound.h>
+#include <math.h>
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -21,8 +22,12 @@ typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
+
 typedef int32_t int32;
 typedef int16_t int16;
+
+typedef float real32;
+typedef double real64;
 
 struct win32_offscreen_buffer {
     BITMAPINFO info;
@@ -322,21 +327,22 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                                         CW_USEDEFAULT, 
                                         0, 0, instance, 0);
         if (windowHandle) {
-            // ShowWindow(windowHandle, SW_SHOWNORMAL);
+            // ShowWindow(windowHandle, SW_SHOWNORMAL);  // Do not need because WS_VISIBLE above
             HDC deviceContext = GetDC(windowHandle);
 
             int xOffset = 0;
             int yOffset = 0;
             int samplesPerSecond = 48000;
-            int Hz = 256;
+            int toneHz = 256;
+            int toneVolume = 1000;
             uint32 runningSampleIndex = 0;
-            int squareWaveCounter = 0;
-            int squareWavePeriod = samplesPerSecond / Hz;
-            int halfSquareWavePeriod = squareWavePeriod / 2;
+            int wavePeriod = samplesPerSecond / toneHz;
+            int halfWavePeriod = wavePeriod / 2;
             int bytesPerSample = sizeof(int16) * 2;
             int secondaryBufferSize = samplesPerSecond * bytesPerSample;
 
             InitDSound(windowHandle, samplesPerSecond, secondaryBufferSize);
+            bool soundIsPlaying = false;
 
             globalRunning = true;
             while (globalRunning) {
@@ -348,6 +354,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                     TranslateMessage(&message);
                     DispatchMessage(&message);
                 }
+
+                // Controller
                 // TODO: Should we pool this more frequently
                 for (DWORD controllerIndex = 0; controllerIndex < XUSER_MAX_COUNT; ++ controllerIndex) {
                     XINPUT_STATE controllerState;
@@ -386,13 +394,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 // Render
                 RenderGradient(globalBackbuffer, xOffset, yOffset);
                 
-                // DirectSound output test
+                // Sound               
                 DWORD playCursor;
                 DWORD writeCursor;
                 if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))) {
                     DWORD byteToLock = runningSampleIndex * bytesPerSample % secondaryBufferSize;
                     DWORD bytesToWrite;
-                    if (byteToLock > playCursor) {
+                    if (byteToLock == playCursor) {
+                        bytesToWrite == secondaryBufferSize;
+                    } else if (byteToLock > playCursor) {
                         bytesToWrite = secondaryBufferSize - byteToLock;
                         bytesToWrite += playCursor;
                     } else {
@@ -404,24 +414,31 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                     VOID *region2;
                     DWORD region2Size;
                     if (SUCCEEDED(globalSecondaryBuffer->Lock(byteToLock, bytesToWrite,
-                                                &region1, &region1Size,
-                                                &region2, &region2Size,
-                                                0))) {
-                        int16 * sampleOut = (int16 *)region1;
+                                                              &region1, &region1Size,
+                                                              &region2, &region2Size,
+                                                              0))) {
                         DWORD region1SampleCount = region1Size / bytesPerSample;
+                        int16 * sampleOut = (int16 *)region1;
                         for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++ sampleIndex) {
-                            int16 sampleValue = (runningSampleIndex / halfSquareWavePeriod % 2) ? 16000 : -16000;
+                            real32 sineValue = ;
+                            int16 
+                            // int16 sampleValue = (runningSampleIndex ++ / halfWavePeriod % 2) ? toneVolume : -toneVolume;  // actual sound
                             *sampleOut ++ = sampleValue;
                             *sampleOut ++ = sampleValue;
                         }
-                        sampleOut = (int16 *)region2;
                         DWORD region2SampleCount = region2Size / bytesPerSample;
+                        sampleOut = (int16 *)region2;
                         for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++ sampleIndex) {
-                            int16 sampleValue = (runningSampleIndex / halfSquareWavePeriod % 2) ? 16000 : -16000;
+                            int16 sampleValue = (runningSampleIndex++ / halfWavePeriod % 2) ? toneVolume : -toneVolume;  // actual sound
                             *sampleOut ++ = sampleValue;
                             *sampleOut ++ = sampleValue;
                         }
+                        globalSecondaryBuffer->Unlock(region1, region1Size, region2, region2Size);
                     }
+                }
+                if (!soundIsPlaying) {
+                    globalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+                    soundIsPlaying = true;
                 }
 
                 win32_window_dimension dimension = GetWindowDimension(windowHandle);
