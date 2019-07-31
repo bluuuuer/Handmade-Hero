@@ -54,6 +54,7 @@ struct win32_sound_output {
     int bytesPerSample;
     int secondaryBufferSize;
     real32 tSine;
+    int latencySampleCount;
 };
 
 // TODO: This is a global for now.
@@ -375,8 +376,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
             soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
             soundOutput.bytesPerSample = sizeof(int16) * 2;
             soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
+            soundOutput.latencySampleCount = soundOutput.samplesPerSecond / 15;
             InitDSound(windowHandle, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
-            FillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);
+            FillSoundBuffer(&soundOutput, 0, soundOutput.latencySampleCount * soundOutput.bytesPerSample);
             globalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             globalRunning = true;
@@ -436,15 +438,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 DWORD writeCursor;
                 if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))) {
                     DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
+                    DWORD targetCursor = playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample;
                     DWORD bytesToWrite;
                     // TODO: Change this to using a lower latency offset from the playcursor when we actually astart haveing sound
-                    if (byteToLock == playCursor) {
-                        bytesToWrite = 0;
-                    } else if (byteToLock > playCursor) {
+                    if (byteToLock > targetCursor) {
                         bytesToWrite = soundOutput.secondaryBufferSize - byteToLock;
-                        bytesToWrite += playCursor;
+                        bytesToWrite += targetCursor;
                     } else {
-                        bytesToWrite = playCursor - byteToLock;
+                        bytesToWrite = targetCursor - byteToLock;
                     }
 
                     FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
