@@ -25,8 +25,9 @@ typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
-typedef int32_t int32;
 typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
 
 typedef float real32;
 typedef double real64;
@@ -382,6 +383,19 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
             globalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             globalRunning = true;
+            LARGE_INTEGER frequencyResult;
+            bool canCount = false;
+            LARGE_INTEGER beginCount;
+            LARGE_INTEGER endCount;
+            int64 countFrequency;
+            if (QueryPerformanceFrequency(&frequencyResult)) {
+                countFrequency = frequencyResult.QuadPart;
+                QueryPerformanceCounter(&beginCount);
+                canCount = true;
+                OutputDebugStringA("canCount");
+            }
+            // char buffer[256];
+            // wsprintf(buffer, "canCount: %dms\n", canCount);
             while (globalRunning) {
                 MSG message;
                 while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -438,7 +452,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 DWORD writeCursor;
                 if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))) {
                     DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
-                    DWORD targetCursor = playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample;
+                    DWORD targetCursor = (playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample) 
+                                        % soundOutput.secondaryBufferSize;
                     DWORD bytesToWrite;
                     // TODO: Change this to using a lower latency offset from the playcursor when we actually astart haveing sound
                     if (byteToLock > targetCursor) {
@@ -456,6 +471,20 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 // ReleaseDC(windowHandle, deviceContext);
 
                 // xOffset ++;
+
+                // FPS 
+                if (canCount) {
+                    QueryPerformanceCounter(&endCount);
+                    int64 countElapsed = endCount.QuadPart - beginCount.QuadPart;
+                    int32 msPerFrame = (int32)(countElapsed * 1000 / countFrequency); // ms
+                    int32 fps = countFrequency / countElapsed;
+
+                    char buffer[256];
+                    wsprintf(buffer, "Milliseconds/frame: %d ms / %d FPS\n", msPerFrame, fps);
+                    OutputDebugStringA(buffer);
+
+                    beginCount = endCount;
+                }
             }
         } else {
             // TODO:
