@@ -1,8 +1,28 @@
+/*
+- Saved game locations
+- Getting a handle to our own executable file
+- Asset loading path
+- Threading (launch a thread)
+- Raw Input (support for multiple keyboards)
+- Sleep / timeBeginPeriod
+- ClipCursor() (for multimonitor support)
+- Fullscreen support
+- WM_SETCURSOR (control cursor visiblity)
+- QueryCancelAutoplay
+- WM_ACTIVEAPP (for when we are not the active application)
+- Blit speed improvements (BitBlt)
+- Hardware acceleration (OpenGL or Direct3D or BOTH?)
+- GetKeyboardLayout (for French keyboards, international WASD support)
+etc.
+ */
+
 #include <windows.h>
 #include <stdint.h>
 #include <Xinput.h>
 #include <dsound.h>
 #include <math.h>
+
+#include "handmade.cpp"
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -84,6 +104,10 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 // DirectSoundCreated
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
+void *PlatformLoadFile(char *fileName) {
+    return(0);
+}
 
 internal void FillSoundBuffer(win32_sound_output *soundOutput, DWORD byteToLock, DWORD bytesToWrite) {
     VOID *region1;
@@ -471,6 +495,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstacne, LPSTR commandLi
                 // ReleaseDC(windowHandle, deviceContext);
 
                 // xOffset ++;
+                MainLoop();
 
                 // FPS 
                 if (canCount) {
